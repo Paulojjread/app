@@ -10,6 +10,9 @@ type Agendamento = {
   horario: string;
   servico: string;
   valor: number;
+  status?: string;
+  forma_pagamento?: string;
+  tipo_resultado?: string;
 };
 
 type Preco = {
@@ -21,13 +24,36 @@ type Preco = {
 export default function Home() {
   const [login, setLogin] = useState("");
   const [logado, setLogado] = useState(false);
+
   const [aba, setAba] = useState("agenda");
+
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [precos, setPrecos] = useState<Preco[]>([]);
+
   const [modal, setModal] = useState(false);
   const [editando, setEditando] = useState<Agendamento | null>(null);
-  const [diaSelecionado, setDiaSelecionado] = useState<string | null>(null);
-  const [filtroFinanceiro, setFiltroFinanceiro] = useState("mes");
+
+  const [diaSelecionado, setDiaSelecionado] =
+    useState<string | null>(null);
+
+  const hoje = new Date();
+
+  const [mesAtual, setMesAtual] = useState(
+    new Date().getMonth()
+  );
+
+  const [anoAtual, setAnoAtual] = useState(
+    new Date().getFullYear()
+  );
+
+  const [filtroFinanceiro, setFiltroFinanceiro] =
+    useState("mes");
+
+  const [pagamentoModal, setPagamentoModal] =
+    useState<Agendamento | null>(null);
+
+  const [formaPagamento, setFormaPagamento] =
+    useState("Pix");
 
   const [nome, setNome] = useState("");
   const [data, setData] = useState("");
@@ -39,13 +65,16 @@ export default function Home() {
     const { data: agenda } = await supabase
       .from("agendamentos")
       .select("*")
-      .order("data_atendimento", { ascending: true })
-      .order("horario", { ascending: true });
+      .order("data_atendimento", {
+        ascending: true,
+      })
+      .order("horario", {
+        ascending: true,
+      });
 
     const { data: listaPrecos } = await supabase
       .from("configuracoes_precos")
-      .select("*")
-      .order("id", { ascending: true });
+      .select("*");
 
     setAgendamentos(agenda || []);
     setPrecos(listaPrecos || []);
@@ -56,39 +85,25 @@ export default function Home() {
   }, [logado]);
 
   function entrar() {
-    if (login.trim().toLowerCase() === "suziane") setLogado(true);
+    if (
+      login.trim().toLowerCase() === "suziane"
+    ) {
+      setLogado(true);
+    }
   }
 
   function criarDataHora(item: Agendamento) {
-    return new Date(`${item.data_atendimento}T${item.horario}`);
+    return new Date(
+      `${item.data_atendimento}T${item.horario}`
+    );
   }
 
-  const agora = new Date();
-  const ano = agora.getFullYear();
-  const mes = agora.getMonth();
+  function formatarDataCompleta(
+    dataISO: string,
+    hora: string
+  ) {
+    const d = new Date(dataISO + "T00:00:00");
 
-  const inicioMes = new Date(ano, mes, 1);
-  const fimMes = new Date(ano, mes + 1, 0, 23, 59, 59);
-
-  const futuros = agendamentos.filter((item) => criarDataHora(item) >= agora);
-  const realizados = agendamentos.filter((item) => criarDataHora(item) < agora);
-
-  const faturamentoMes = realizados
-    .filter((item) => {
-      const d = criarDataHora(item);
-      return d >= inicioMes && d <= fimMes;
-    })
-    .reduce((soma, item) => soma + Number(item.valor), 0);
-
-  const diasNoMes = new Date(ano, mes + 1, 0).getDate();
-
-  const diasMes = Array.from({ length: diasNoMes }, (_, i) => {
-    const d = new Date(ano, mes, i + 1);
-    return d.toISOString().slice(0, 10);
-  });
-
-  function formatarDataCompleta(dataISO: string, hora: string) {
-    const d = new Date(`${dataISO}T00:00:00`);
     return (
       d.toLocaleDateString("pt-BR", {
         weekday: "long",
@@ -101,14 +116,173 @@ export default function Home() {
     );
   }
 
-  function abrirNovo() {
+  const nomeMes = new Date(
+    anoAtual,
+    mesAtual,
+    1
+  ).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const diasNoMes = new Date(
+    anoAtual,
+    mesAtual + 1,
+    0
+  ).getDate();
+
+  const diasMes = Array.from(
+    { length: diasNoMes },
+    (_, i) => {
+      const d = new Date(
+        anoAtual,
+        mesAtual,
+        i + 1
+      );
+
+      return d.toISOString().slice(0, 10);
+    }
+  );
+
+  function proximoMes() {
+    if (mesAtual === 11) {
+      setMesAtual(0);
+      setAnoAtual((a) => a + 1);
+    } else {
+      setMesAtual((m) => m + 1);
+    }
+  }
+
+  function mesAnterior() {
+    if (mesAtual === 0) {
+      setMesAtual(11);
+      setAnoAtual((a) => a - 1);
+    } else {
+      setMesAtual((m) => m - 1);
+    }
+  }
+
+  const futuros = agendamentos.filter(
+    (item) =>
+      criarDataHora(item) >= hoje &&
+      item.status !== "realizado"
+  );
+
+  const confirmar = agendamentos.filter(
+    (item) =>
+      criarDataHora(item) < hoje &&
+      item.status !== "realizado" &&
+      item.status !== "cancelado"
+  );
+
+  const realizados = agendamentos.filter(
+    (item) =>
+      item.status === "realizado"
+  );
+
+  async function confirmarAtendimento() {
+    if (!pagamentoModal) return;
+
+    await supabase
+      .from("agendamentos")
+      .update({
+        status: "realizado",
+        tipo_resultado: "realizado",
+        forma_pagamento: formaPagamento,
+      })
+      .eq("id", pagamentoModal.id);
+
+    setPagamentoModal(null);
+
+    carregar();
+  }
+
+  async function marcarFalta(
+    id: number
+  ) {
+    await supabase
+      .from("agendamentos")
+      .update({
+        status: "cancelado",
+        tipo_resultado:
+          "nao_compareceu",
+      })
+      .eq("id", id);
+
+    carregar();
+  }
+
+  const faturamentoMes =
+    realizados.reduce(
+      (acc, item) =>
+        acc + Number(item.valor),
+      0
+    );
+
+  const pix = realizados
+    .filter(
+      (i) =>
+        i.forma_pagamento === "Pix"
+    )
+    .reduce(
+      (s, i) => s + Number(i.valor),
+      0
+    );
+
+  const dinheiro = realizados
+    .filter(
+      (i) =>
+        i.forma_pagamento ===
+        "Dinheiro"
+    )
+    .reduce(
+      (s, i) => s + Number(i.valor),
+      0
+    );
+
+  const credito = realizados
+    .filter(
+      (i) =>
+        i.forma_pagamento ===
+        "Cartão crédito"
+    )
+    .reduce(
+      (s, i) => s + Number(i.valor),
+      0
+    );
+
+  const debito = realizados
+    .filter(
+      (i) =>
+        i.forma_pagamento ===
+        "Cartão débito"
+    )
+    .reduce(
+      (s, i) => s + Number(i.valor),
+      0
+    );
+
+  const permuta = realizados
+    .filter(
+      (i) =>
+        i.forma_pagamento ===
+        "Permuta"
+    )
+    .reduce(
+      (s, i) => s + Number(i.valor),
+      0
+    );
+
+    function abrirNovo() {
     setEditando(null);
     setNome("");
     setData(diaSelecionado || "");
     setHorario("");
     setServico("Mão");
+
     const preco = precos.find((p) => p.servico === "Mão");
     setValor(String(preco?.valor || ""));
+
     setModal(true);
   }
 
@@ -124,6 +298,7 @@ export default function Home() {
 
   function trocarServico(novoServico: string) {
     setServico(novoServico);
+
     const preco = precos.find((p) => p.servico === novoServico);
     if (preco) setValor(String(preco.valor));
   }
@@ -140,12 +315,18 @@ export default function Home() {
       horario,
       servico,
       valor: Number(valor),
+      status: "agendado",
     };
 
     if (editando) {
-      await supabase.from("agendamentos").update(payload).eq("id", editando.id);
+      await supabase
+        .from("agendamentos")
+        .update(payload)
+        .eq("id", editando.id);
     } else {
-      await supabase.from("agendamentos").insert(payload);
+      await supabase
+        .from("agendamentos")
+        .insert(payload);
     }
 
     setModal(false);
@@ -154,7 +335,12 @@ export default function Home() {
 
   async function excluir(id: number) {
     if (!confirm("Excluir este agendamento?")) return;
-    await supabase.from("agendamentos").delete().eq("id", id);
+
+    await supabase
+      .from("agendamentos")
+      .delete()
+      .eq("id", id);
+
     carregar();
   }
 
@@ -167,42 +353,13 @@ export default function Home() {
     carregar();
   }
 
-  function inicioFiltro() {
-    const d = new Date();
-
-    if (filtroFinanceiro === "mes") return new Date(d.getFullYear(), d.getMonth(), 1);
-    if (filtroFinanceiro === "3") {
-      d.setMonth(d.getMonth() - 3);
-      return d;
-    }
-    if (filtroFinanceiro === "6") {
-      d.setMonth(d.getMonth() - 6);
-      return d;
-    }
-    if (filtroFinanceiro === "12") {
-      d.setFullYear(d.getFullYear() - 1);
-      return d;
-    }
-
-    return new Date("2000-01-01");
-  }
-
-  const realizadosFiltrados = realizados.filter(
-    (item) => criarDataHora(item) >= inicioFiltro()
-  );
-
-  const faturamentoFiltrado = realizadosFiltrados.reduce(
-    (soma, item) => soma + Number(item.valor),
-    0
-  );
-
-  const qtdMao = realizadosFiltrados.filter((i) => i.servico === "Mão").length;
-  const qtdPe = realizadosFiltrados.filter((i) => i.servico === "Pé").length;
-  const qtdPeMao = realizadosFiltrados.filter((i) => i.servico === "Pé e Mão").length;
-
   const agendamentosDia = diaSelecionado
-    ? agendamentos.filter((item) => item.data_atendimento === diaSelecionado)
+    ? agendamentos.filter(
+        (item) => item.data_atendimento === diaSelecionado
+      )
     : [];
+
+  const hojeISO = new Date().toISOString().slice(0, 10);
 
   if (!logado) {
     return (
@@ -219,7 +376,9 @@ export default function Home() {
               onChange={(e) => setLogin(e.target.value)}
             />
 
-            <button onClick={entrar}>Entrar</button>
+            <button onClick={entrar}>
+              Entrar
+            </button>
           </div>
         </main>
 
@@ -237,72 +396,117 @@ export default function Home() {
             <p>Manicure & Pedicure</p>
           </div>
 
-          <button onClick={() => setLogado(false)}>Sair</button>
+          <button onClick={() => setLogado(false)}>
+            Sair
+          </button>
         </header>
 
         {aba === "agenda" && (
           <>
             <section className="resumo">
-              <span>Faturamento do mês</span>
-              <strong>R$ {faturamentoMes.toFixed(2)}</strong>
+              <span>Faturamento confirmado</span>
+              <strong>
+                R$ {faturamentoMes.toFixed(2)}
+              </strong>
             </section>
 
-            <div className="tituloLinha">
-              <h2>Calendário do mês</h2>
-              <button onClick={abrirNovo}>+ Agendar</button>
+            <div className="calHeader">
+              <button onClick={mesAnterior}>‹</button>
+              <h2>{nomeMes}</h2>
+              <button onClick={proximoMes}>›</button>
+            </div>
+
+            <div className="semanaLinha">
+              <span>Dom</span>
+              <span>Seg</span>
+              <span>Ter</span>
+              <span>Qua</span>
+              <span>Qui</span>
+              <span>Sex</span>
+              <span>Sáb</span>
             </div>
 
             <div className="calendario">
               {diasMes.map((dia) => {
                 const qtd = agendamentos.filter(
-                  (item) => item.data_atendimento === dia
+                  (item) =>
+                    item.data_atendimento === dia &&
+                    criarDataHora(item) >= hoje &&
+                    item.status !== "realizado"
                 ).length;
 
                 return (
                   <button
                     key={dia}
-                    className={`dia ${qtd > 0 ? "comAgenda" : ""} ${
-  diaSelecionado === dia ? "selecionado" : ""
-} ${
-  dia === new Date().toISOString().slice(0, 10) ? "hoje" : ""
-}`}
+                    className={`dia ${
+                      qtd > 0 ? "comAgenda" : ""
+                    } ${
+                      diaSelecionado === dia ? "selecionado" : ""
+                    } ${
+                      dia === hojeISO ? "hoje" : ""
+                    }`}
                     onClick={() => setDiaSelecionado(dia)}
                   >
-                    <strong>{Number(dia.slice(8, 10))}</strong>
+                    <strong>
+                      {Number(dia.slice(8, 10))}
+                    </strong>
+
                     {qtd > 0 && <span>{qtd}</span>}
                   </button>
                 );
               })}
             </div>
 
+            <div className="tituloLinha">
+              <h2>Agenda do dia</h2>
+              <button onClick={abrirNovo}>
+                + Agendar
+              </button>
+            </div>
+
             {diaSelecionado && (
               <section className="box">
-                <h2>
-                  {new Date(diaSelecionado + "T00:00:00").toLocaleDateString(
-                    "pt-BR",
-                    {
-                      weekday: "long",
-                      day: "2-digit",
-                      month: "long",
-                      year: "numeric",
-                    }
-                  )}
+                <h2 className="dataTitulo">
+                  {new Date(
+                    diaSelecionado + "T00:00:00"
+                  ).toLocaleDateString("pt-BR", {
+                    weekday: "long",
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric",
+                  })}
                 </h2>
 
-                {agendamentosDia.length === 0 && <p>Sem agendamentos.</p>}
+                {agendamentosDia.length === 0 && (
+                  <p>Sem agendamentos.</p>
+                )}
 
                 {agendamentosDia.map((item) => (
                   <div className="card" key={item.id}>
                     <div>
                       <h3>{item.nome_cliente}</h3>
-                      <p>{formatarDataCompleta(item.data_atendimento, item.horario)}</p>
+                      <p>
+                        {formatarDataCompleta(
+                          item.data_atendimento,
+                          item.horario
+                        )}
+                      </p>
                       <span>{item.servico}</span>
                     </div>
 
                     <div className="lado">
-                      <strong>R$ {Number(item.valor).toFixed(2)}</strong>
-                      <button onClick={() => abrirEditar(item)}>Editar</button>
-                      <button className="danger" onClick={() => excluir(item.id)}>
+                      <strong>
+                        R$ {Number(item.valor).toFixed(2)}
+                      </strong>
+
+                      <button onClick={() => abrirEditar(item)}>
+                        Editar
+                      </button>
+
+                      <button
+                        className="danger"
+                        onClick={() => excluir(item.id)}
+                      >
                         Excluir
                       </button>
                     </div>
@@ -312,21 +516,35 @@ export default function Home() {
             )}
 
             <div className="tituloLinha">
-              <h2>Próximos atendimentos</h2>
+              <h2>Próximos</h2>
             </div>
 
             {futuros.map((item) => (
               <div className="card" key={item.id}>
                 <div>
                   <h3>{item.nome_cliente}</h3>
-                  <p>{formatarDataCompleta(item.data_atendimento, item.horario)}</p>
+                  <p>
+                    {formatarDataCompleta(
+                      item.data_atendimento,
+                      item.horario
+                    )}
+                  </p>
                   <span>{item.servico}</span>
                 </div>
 
                 <div className="lado">
-                  <strong>R$ {Number(item.valor).toFixed(2)}</strong>
-                  <button onClick={() => abrirEditar(item)}>Editar</button>
-                  <button className="danger" onClick={() => excluir(item.id)}>
+                  <strong>
+                    R$ {Number(item.valor).toFixed(2)}
+                  </strong>
+
+                  <button onClick={() => abrirEditar(item)}>
+                    Editar
+                  </button>
+
+                  <button
+                    className="danger"
+                    onClick={() => excluir(item.id)}
+                  >
                     Excluir
                   </button>
                 </div>
@@ -335,22 +553,90 @@ export default function Home() {
           </>
         )}
 
+        {aba === "confirmar" && (
+          <div className="box">
+            <h2>Confirmar atendimentos</h2>
+
+            {confirmar.length === 0 && (
+              <p>Nenhum atendimento pendente.</p>
+            )}
+
+            {confirmar.map((item) => (
+              <div className="card" key={item.id}>
+                <div>
+                  <h3>{item.nome_cliente}</h3>
+                  <p>
+                    {formatarDataCompleta(
+                      item.data_atendimento,
+                      item.horario
+                    )}
+                  </p>
+                  <span>{item.servico}</span>
+                </div>
+
+                <div className="lado">
+                  <strong>
+                    R$ {Number(item.valor).toFixed(2)}
+                  </strong>
+
+                  <button onClick={() => setPagamentoModal(item)}>
+                    Confirmar
+                  </button>
+
+                  <button onClick={() => abrirEditar(item)}>
+                    Remarcar
+                  </button>
+
+                  <button
+                    className="danger"
+                    onClick={() => marcarFalta(item.id)}
+                  >
+                    Falta
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {aba === "historico" && (
           <div className="box">
             <h2>Atendimentos realizados</h2>
 
-            {realizados.length === 0 && <p>Nenhum atendimento realizado ainda.</p>}
+            {realizados.length === 0 && (
+              <p>Nenhum atendimento realizado ainda.</p>
+            )}
 
             {realizados.map((item) => (
               <div className="card" key={item.id}>
                 <div>
                   <h3>{item.nome_cliente}</h3>
-                  <p>{formatarDataCompleta(item.data_atendimento, item.horario)}</p>
-                  <span>{item.servico}</span>
+                  <p>
+                    {formatarDataCompleta(
+                      item.data_atendimento,
+                      item.horario
+                    )}
+                  </p>
+                  <span>
+                    {item.servico} • {item.forma_pagamento || "Sem pagamento"}
+                  </span>
                 </div>
 
                 <div className="lado">
-                  <strong>R$ {Number(item.valor).toFixed(2)}</strong>
+                  <strong>
+                    R$ {Number(item.valor).toFixed(2)}
+                  </strong>
+
+                  <button onClick={() => abrirEditar(item)}>
+                    Editar
+                  </button>
+
+                  <button
+                    className="danger"
+                    onClick={() => excluir(item.id)}
+                  >
+                    Apagar
+                  </button>
                 </div>
               </div>
             ))}
@@ -360,8 +646,10 @@ export default function Home() {
         {aba === "financeiro" && (
           <>
             <section className="resumo">
-              <span>Faturamento filtrado</span>
-              <strong>R$ {faturamentoFiltrado.toFixed(2)}</strong>
+              <span>Faturamento recebido</span>
+              <strong>
+                R$ {faturamentoMes.toFixed(2)}
+              </strong>
             </section>
 
             <div className="box">
@@ -369,7 +657,9 @@ export default function Home() {
 
               <select
                 value={filtroFinanceiro}
-                onChange={(e) => setFiltroFinanceiro(e.target.value)}
+                onChange={(e) =>
+                  setFiltroFinanceiro(e.target.value)
+                }
               >
                 <option value="mes">Este mês</option>
                 <option value="3">Últimos 3 meses</option>
@@ -380,33 +670,53 @@ export default function Home() {
 
               <div className="dash">
                 <div>
-                  <span>Unhas feitas</span>
-                  <strong>{realizadosFiltrados.length}</strong>
+                  <span>Atendimentos</span>
+                  <strong>{realizados.length}</strong>
                 </div>
 
                 <div>
-                  <span>Mão</span>
-                  <strong>{qtdMao}</strong>
+                  <span>Pix</span>
+                  <strong>R$ {pix.toFixed(2)}</strong>
                 </div>
 
                 <div>
-                  <span>Pé</span>
-                  <strong>{qtdPe}</strong>
+                  <span>Dinheiro</span>
+                  <strong>R$ {dinheiro.toFixed(2)}</strong>
                 </div>
 
                 <div>
-                  <span>Pé e Mão</span>
-                  <strong>{qtdPeMao}</strong>
+                  <span>Crédito</span>
+                  <strong>R$ {credito.toFixed(2)}</strong>
+                </div>
+
+                <div>
+                  <span>Débito</span>
+                  <strong>R$ {debito.toFixed(2)}</strong>
+                </div>
+
+                <div>
+                  <span>Permuta</span>
+                  <strong>R$ {permuta.toFixed(2)}</strong>
                 </div>
               </div>
 
-              <h3>Gráfico de faturamento</h3>
-              <div className="grafico">
-                <div
-                  style={{
-                    height: `${Math.max(12, Math.min(faturamentoFiltrado / 5, 180))}px`,
-                  }}
-                />
+              <h3>Pagamentos recebidos</h3>
+
+              <div className="pagamentosGrafico">
+                <p>Pix <b>R$ {pix.toFixed(2)}</b></p>
+                <div><span style={{ width: `${Math.min(pix, 100)}%` }} /></div>
+
+                <p>Dinheiro <b>R$ {dinheiro.toFixed(2)}</b></p>
+                <div><span style={{ width: `${Math.min(dinheiro, 100)}%` }} /></div>
+
+                <p>Crédito <b>R$ {credito.toFixed(2)}</b></p>
+                <div><span style={{ width: `${Math.min(credito, 100)}%` }} /></div>
+
+                <p>Débito <b>R$ {debito.toFixed(2)}</b></p>
+                <div><span style={{ width: `${Math.min(debito, 100)}%` }} /></div>
+
+                <p>Permuta <b>R$ {permuta.toFixed(2)}</b></p>
+                <div><span style={{ width: `${Math.min(permuta, 100)}%` }} /></div>
               </div>
             </div>
           </>
@@ -422,7 +732,9 @@ export default function Home() {
                 <input
                   type="number"
                   defaultValue={preco.valor}
-                  onBlur={(e) => salvarPreco(preco.id, e.target.value)}
+                  onBlur={(e) =>
+                    salvarPreco(preco.id, e.target.value)
+                  }
                 />
               </div>
             ))}
@@ -436,6 +748,10 @@ export default function Home() {
         <nav className="menu">
           <button className={aba === "agenda" ? "ativo" : ""} onClick={() => setAba("agenda")}>
             📅<span>Agenda</span>
+          </button>
+
+          <button className={aba === "confirmar" ? "ativo" : ""} onClick={() => setAba("confirmar")}>
+            ⏳<span>Confirmar</span>
           </button>
 
           <button className={aba === "historico" ? "ativo" : ""} onClick={() => setAba("historico")}>
@@ -456,55 +772,103 @@ export default function Home() {
         <div className="modal">
           <div className="modalBox">
             <h2>{editando ? "Reagendar cliente" : "Novo agendamento"}</h2>
-<div className="campo">
-  <label>Nome da cliente</label>
-  <input
-    placeholder="Ex: Fernanda"
-    value={nome}
-    onChange={(e) => setNome(e.target.value)}
-  />
-</div>
 
-<div className="formGrid">
-  <div className="campo">
-    <label>Data</label>
-    <input
-      type="date"
-      value={data}
-      onChange={(e) => setData(e.target.value)}
-    />
-  </div>
+            <div className="campo">
+              <label>Nome da cliente</label>
+              <input
+                placeholder="Ex: Fernanda"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+              />
+            </div>
 
-  <div className="campo">
-    <label>Horário</label>
-    <input
-      type="time"
-      value={horario}
-      onChange={(e) => setHorario(e.target.value)}
-    />
-  </div>
-</div>
+            <div className="formGrid">
+              <div className="campo">
+                <label>Data</label>
+                <input
+                  type="date"
+                  value={data}
+                  onChange={(e) => setData(e.target.value)}
+                />
+              </div>
 
-<div className="campo">
-  <label>Serviço</label>
-  <select value={servico} onChange={(e) => trocarServico(e.target.value)}>
-    <option>Mão</option>
-    <option>Pé</option>
-    <option>Pé e Mão</option>
-  </select>
-</div>
+              <div className="campo">
+                <label>Horário</label>
+                <input
+                  type="time"
+                  value={horario}
+                  onChange={(e) => setHorario(e.target.value)}
+                />
+              </div>
+            </div>
 
-<div className="campo">
-  <label>Valor cobrado</label>
-  <input
-    type="number"
-    placeholder="Ex: 60"
-    value={valor}
-    onChange={(e) => setValor(e.target.value)}
-  />
-</div>
+            <div className="campo">
+              <label>Serviço</label>
+              <select
+                value={servico}
+                onChange={(e) => trocarServico(e.target.value)}
+              >
+                <option>Mão</option>
+                <option>Pé</option>
+                <option>Pé e Mão</option>
+              </select>
+            </div>
+
+            <div className="campo">
+              <label>Valor cobrado</label>
+              <input
+                type="number"
+                placeholder="Ex: 60"
+                value={valor}
+                onChange={(e) => setValor(e.target.value)}
+              />
+            </div>
+
             <button onClick={salvar}>Salvar</button>
-            <button className="cancelar" onClick={() => setModal(false)}>Cancelar</button>
+
+            <button
+              className="cancelar"
+              onClick={() => setModal(false)}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {pagamentoModal && (
+        <div className="modal">
+          <div className="modalBox">
+            <h2>Confirmar atendimento</h2>
+
+            <p>
+              {pagamentoModal.nome_cliente} - R$ {Number(pagamentoModal.valor).toFixed(2)}
+            </p>
+
+            <div className="campo">
+              <label>Forma de pagamento</label>
+              <select
+                value={formaPagamento}
+                onChange={(e) => setFormaPagamento(e.target.value)}
+              >
+                <option>Pix</option>
+                <option>Dinheiro</option>
+                <option>Cartão crédito</option>
+                <option>Cartão débito</option>
+                <option>Permuta</option>
+              </select>
+            </div>
+
+            <button onClick={confirmarAtendimento}>
+              Confirmar
+            </button>
+
+            <button
+              className="cancelar"
+              onClick={() => setPagamentoModal(null)}
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       )}
@@ -934,7 +1298,127 @@ function Estilos() {
   gap: 12px;
 }
 
+.calHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 22px 0 14px;
+}
 
+.calHeader h2 {
+  margin: 0;
+  text-transform: capitalize;
+  color: #be185d;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.calHeader button {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #fce7f3;
+  color: #be185d;
+  font-size: 24px;
+}
+
+.semanaLinha {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 8px;
+}
+
+.semanaLinha span {
+  text-align: center;
+  font-size: 12px;
+  color: #888;
+  font-weight: 700;
+}
+
+.dia {
+  min-height: 54px;
+  border-radius: 16px;
+  background: #fff1f7;
+  color: #777;
+  position: relative;
+  transition: 0.2s;
+}
+
+.dia strong {
+  font-size: 15px;
+}
+
+.dia:hover {
+  transform: scale(1.05);
+}
+
+.dia.hoje {
+  border: 3px solid #111827;
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.15);
+}
+
+.dataTitulo {
+  text-transform: capitalize;
+  color: #be185d;
+  font-size: 18px;
+}
+
+.modalBox p {
+  color: #555;
+  margin: 10px 0 16px;
+}
+
+.pagamentosGrafico {
+  margin-top: 18px;
+}
+
+.pagamentosGrafico p {
+  display: flex;
+  justify-content: space-between;
+  margin: 14px 0 6px;
+  font-size: 14px;
+}
+
+.pagamentosGrafico div {
+  height: 12px;
+  background: #f3f4f6;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.pagamentosGrafico span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    #fb7185,
+    #db2777
+  );
+}
+
+.card {
+  background: white;
+  border-radius: 28px;
+  padding: 18px;
+  margin-bottom: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+}
+
+.card h3 {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.card p {
+  font-size: 13px;
+}
+
+.menu {
+  grid-template-columns: repeat(5, 1fr);
+}
 
     `}</style>
   );

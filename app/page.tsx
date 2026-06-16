@@ -26,6 +26,8 @@ export default function Home() {
   const [precos, setPrecos] = useState<Preco[]>([]);
   const [modal, setModal] = useState(false);
   const [editando, setEditando] = useState<Agendamento | null>(null);
+  const [diaSelecionado, setDiaSelecionado] = useState<string | null>(null);
+  const [filtroFinanceiro, setFiltroFinanceiro] = useState("mes");
 
   const [nome, setNome] = useState("");
   const [data, setData] = useState("");
@@ -57,10 +59,52 @@ export default function Home() {
     if (login.trim().toLowerCase() === "suziane") setLogado(true);
   }
 
+  function criarDataHora(item: Agendamento) {
+    return new Date(`${item.data_atendimento}T${item.horario}`);
+  }
+
+  const agora = new Date();
+  const ano = agora.getFullYear();
+  const mes = agora.getMonth();
+
+  const inicioMes = new Date(ano, mes, 1);
+  const fimMes = new Date(ano, mes + 1, 0, 23, 59, 59);
+
+  const futuros = agendamentos.filter((item) => criarDataHora(item) >= agora);
+  const realizados = agendamentos.filter((item) => criarDataHora(item) < agora);
+
+  const faturamentoMes = realizados
+    .filter((item) => {
+      const d = criarDataHora(item);
+      return d >= inicioMes && d <= fimMes;
+    })
+    .reduce((soma, item) => soma + Number(item.valor), 0);
+
+  const diasNoMes = new Date(ano, mes + 1, 0).getDate();
+
+  const diasMes = Array.from({ length: diasNoMes }, (_, i) => {
+    const d = new Date(ano, mes, i + 1);
+    return d.toISOString().slice(0, 10);
+  });
+
+  function formatarDataCompleta(dataISO: string, hora: string) {
+    const d = new Date(`${dataISO}T00:00:00`);
+    return (
+      d.toLocaleDateString("pt-BR", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      }) +
+      " às " +
+      hora.slice(0, 5)
+    );
+  }
+
   function abrirNovo() {
     setEditando(null);
     setNome("");
-    setData("");
+    setData(diaSelecionado || "");
     setHorario("");
     setServico("Mão");
     const preco = precos.find((p) => p.servico === "Mão");
@@ -123,35 +167,42 @@ export default function Home() {
     carregar();
   }
 
-  const total = agendamentos.reduce((soma, item) => soma + Number(item.valor), 0);
+  function inicioFiltro() {
+    const d = new Date();
 
-const hoje = new Date();
+    if (filtroFinanceiro === "mes") return new Date(d.getFullYear(), d.getMonth(), 1);
+    if (filtroFinanceiro === "3") {
+      d.setMonth(d.getMonth() - 3);
+      return d;
+    }
+    if (filtroFinanceiro === "6") {
+      d.setMonth(d.getMonth() - 6);
+      return d;
+    }
+    if (filtroFinanceiro === "12") {
+      d.setFullYear(d.getFullYear() - 1);
+      return d;
+    }
 
-function formatarDataCompleta(dataISO: string, horario: string) {
-  const dataObj = new Date(dataISO + "T00:00:00");
+    return new Date("2000-01-01");
+  }
 
-  return dataObj.toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }) + " às " + horario.slice(0, 5);
-}
+  const realizadosFiltrados = realizados.filter(
+    (item) => criarDataHora(item) >= inicioFiltro()
+  );
 
-function mesmaData(dataISO: string, data: Date) {
-  return dataISO === data.toISOString().slice(0, 10);
-}
+  const faturamentoFiltrado = realizadosFiltrados.reduce(
+    (soma, item) => soma + Number(item.valor),
+    0
+  );
 
-const diasSemana = Array.from({ length: 7 }, (_, i) => {
-  const data = new Date();
-  data.setDate(hoje.getDate() + i);
-  return data;
-});
+  const qtdMao = realizadosFiltrados.filter((i) => i.servico === "Mão").length;
+  const qtdPe = realizadosFiltrados.filter((i) => i.servico === "Pé").length;
+  const qtdPeMao = realizadosFiltrados.filter((i) => i.servico === "Pé e Mão").length;
 
-const diasMes = Array.from(
-  { length: new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate() },
-  (_, i) => new Date(hoje.getFullYear(), hoje.getMonth(), i + 1)
-);
+  const agendamentosDia = diaSelecionado
+    ? agendamentos.filter((item) => item.data_atendimento === diaSelecionado)
+    : [];
 
   if (!logado) {
     return (
@@ -182,7 +233,6 @@ const diasMes = Array.from(
       <main className="app">
         <header className="topo">
           <div>
-        
             <h1>Olá, Suzi Assis</h1>
             <p>Manicure & Pedicure</p>
           </div>
@@ -191,95 +241,170 @@ const diasMes = Array.from(
         </header>
 
         {aba === "agenda" && (
-  <>
-    <section className="resumo">
-      <span>Faturamento</span>
-      <strong>R$ {total.toFixed(2)}</strong>
-    </section>
+          <>
+            <section className="resumo">
+              <span>Faturamento do mês</span>
+              <strong>R$ {faturamentoMes.toFixed(2)}</strong>
+            </section>
 
-    <div className="tituloLinha">
-      <h2>Calendário do mês</h2>
-      <button onClick={abrirNovo}>+ Agendar</button>
-    </div>
-
-    <div className="calendarioMes">
-      {diasMes.map((dia) => {
-        const qtd = agendamentos.filter((item) =>
-          mesmaData(item.data_atendimento, dia)
-        ).length;
-
-        return (
-          <div
-            key={dia.toISOString()}
-            className={qtd > 0 ? "diaMes ativoDia" : "diaMes"}
-          >
-            <strong>{dia.getDate()}</strong>
-            {qtd > 0 && <span>{qtd}</span>}
-          </div>
-        );
-      })}
-    </div>
-
-    <div className="tituloLinha">
-      <h2>Agenda da semana</h2>
-    </div>
-
-    {diasSemana.map((dia) => {
-      const listaDia = agendamentos.filter((item) =>
-        mesmaData(item.data_atendimento, dia)
-      );
-
-      return (
-        <section className="diaSemana" key={dia.toISOString()}>
-          <h3>
-            {dia.toLocaleDateString("pt-BR", {
-              weekday: "long",
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            })}
-          </h3>
-
-          {listaDia.length === 0 && (
-            <p className="semAgenda">Sem agendamentos</p>
-          )}
-
-          {listaDia.map((item) => (
-            <div className="card" key={item.id}>
-              <div>
-                <h3>{item.nome_cliente}</h3>
-                <p>{formatarDataCompleta(item.data_atendimento, item.horario)}</p>
-                <span>{item.servico}</span>
-              </div>
-
-              <div className="lado">
-                <strong>R$ {Number(item.valor).toFixed(2)}</strong>
-                <button onClick={() => abrirEditar(item)}>Editar</button>
-                <button className="danger" onClick={() => excluir(item.id)}>
-                  Excluir
-                </button>
-              </div>
+            <div className="tituloLinha">
+              <h2>Calendário do mês</h2>
+              <button onClick={abrirNovo}>+ Agendar</button>
             </div>
-          ))}
-        </section>
-      );
-    })}
-  </>
-)}
+
+            <div className="calendario">
+              {diasMes.map((dia) => {
+                const qtd = agendamentos.filter(
+                  (item) => item.data_atendimento === dia
+                ).length;
+
+                return (
+                  <button
+                    key={dia}
+                    className={`dia ${qtd > 0 ? "comAgenda" : ""} ${
+                      diaSelecionado === dia ? "selecionado" : ""
+                    }`}
+                    onClick={() => setDiaSelecionado(dia)}
+                  >
+                    <strong>{Number(dia.slice(8, 10))}</strong>
+                    {qtd > 0 && <span>{qtd}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {diaSelecionado && (
+              <section className="box">
+                <h2>
+                  {new Date(diaSelecionado + "T00:00:00").toLocaleDateString(
+                    "pt-BR",
+                    {
+                      weekday: "long",
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    }
+                  )}
+                </h2>
+
+                {agendamentosDia.length === 0 && <p>Sem agendamentos.</p>}
+
+                {agendamentosDia.map((item) => (
+                  <div className="card" key={item.id}>
+                    <div>
+                      <h3>{item.nome_cliente}</h3>
+                      <p>{formatarDataCompleta(item.data_atendimento, item.horario)}</p>
+                      <span>{item.servico}</span>
+                    </div>
+
+                    <div className="lado">
+                      <strong>R$ {Number(item.valor).toFixed(2)}</strong>
+                      <button onClick={() => abrirEditar(item)}>Editar</button>
+                      <button className="danger" onClick={() => excluir(item.id)}>
+                        Excluir
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            <div className="tituloLinha">
+              <h2>Próximos atendimentos</h2>
+            </div>
+
+            {futuros.map((item) => (
+              <div className="card" key={item.id}>
+                <div>
+                  <h3>{item.nome_cliente}</h3>
+                  <p>{formatarDataCompleta(item.data_atendimento, item.horario)}</p>
+                  <span>{item.servico}</span>
+                </div>
+
+                <div className="lado">
+                  <strong>R$ {Number(item.valor).toFixed(2)}</strong>
+                  <button onClick={() => abrirEditar(item)}>Editar</button>
+                  <button className="danger" onClick={() => excluir(item.id)}>
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {aba === "historico" && (
+          <div className="box">
+            <h2>Atendimentos realizados</h2>
+
+            {realizados.length === 0 && <p>Nenhum atendimento realizado ainda.</p>}
+
+            {realizados.map((item) => (
+              <div className="card" key={item.id}>
+                <div>
+                  <h3>{item.nome_cliente}</h3>
+                  <p>{formatarDataCompleta(item.data_atendimento, item.horario)}</p>
+                  <span>{item.servico}</span>
+                </div>
+
+                <div className="lado">
+                  <strong>R$ {Number(item.valor).toFixed(2)}</strong>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {aba === "financeiro" && (
           <>
             <section className="resumo">
-              <span>Total ganho</span>
-              <strong>R$ {total.toFixed(2)}</strong>
+              <span>Faturamento filtrado</span>
+              <strong>R$ {faturamentoFiltrado.toFixed(2)}</strong>
             </section>
 
             <div className="box">
               <h2>Financeiro</h2>
-              <p>{agendamentos.length} atendimentos cadastrados.</p>
 
-              <div className="barra">
-                <div style={{ width: `${Math.min(total, 500)}px` }} />
+              <select
+                value={filtroFinanceiro}
+                onChange={(e) => setFiltroFinanceiro(e.target.value)}
+              >
+                <option value="mes">Este mês</option>
+                <option value="3">Últimos 3 meses</option>
+                <option value="6">Últimos 6 meses</option>
+                <option value="12">Último 1 ano</option>
+                <option value="inicio">Desde o início</option>
+              </select>
+
+              <div className="dash">
+                <div>
+                  <span>Unhas feitas</span>
+                  <strong>{realizadosFiltrados.length}</strong>
+                </div>
+
+                <div>
+                  <span>Mão</span>
+                  <strong>{qtdMao}</strong>
+                </div>
+
+                <div>
+                  <span>Pé</span>
+                  <strong>{qtdPe}</strong>
+                </div>
+
+                <div>
+                  <span>Pé e Mão</span>
+                  <strong>{qtdPeMao}</strong>
+                </div>
+              </div>
+
+              <h3>Gráfico de faturamento</h3>
+              <div className="grafico">
+                <div
+                  style={{
+                    height: `${Math.max(12, Math.min(faturamentoFiltrado / 5, 180))}px`,
+                  }}
+                />
               </div>
             </div>
           </>
@@ -300,7 +425,9 @@ const diasMes = Array.from(
               </div>
             ))}
 
-            <p className="aviso">Ao mudar o valor, novos agendamentos já usam o preço atualizado.</p>
+            <p className="aviso">
+              Ao mudar o valor, novos agendamentos já usam o preço atualizado.
+            </p>
           </div>
         )}
 
@@ -308,9 +435,15 @@ const diasMes = Array.from(
           <button className={aba === "agenda" ? "ativo" : ""} onClick={() => setAba("agenda")}>
             📅<span>Agenda</span>
           </button>
+
+          <button className={aba === "historico" ? "ativo" : ""} onClick={() => setAba("historico")}>
+            ✅<span>Realizados</span>
+          </button>
+
           <button className={aba === "financeiro" ? "ativo" : ""} onClick={() => setAba("financeiro")}>
             💰<span>Financeiro</span>
           </button>
+
           <button className={aba === "config" ? "ativo" : ""} onClick={() => setAba("config")}>
             ⚙️<span>Preços</span>
           </button>
@@ -352,8 +485,14 @@ function Estilos() {
         box-sizing: border-box;
       }
 
+      html,
       body {
         margin: 0;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+        touch-action: manipulation;
+        -webkit-text-size-adjust: 100%;
         font-family: Arial, Helvetica, sans-serif;
         background: #ffe4ef;
         color: #28111d;
@@ -366,12 +505,18 @@ function Estilos() {
       }
 
       input,
+      select,
+      textarea,
+      button {
+        font-size: 16px;
+      }
+
+      input,
       select {
         width: 100%;
         padding: 15px;
         border-radius: 16px;
         border: 1px solid #f9a8d4;
-        font-size: 16px;
         margin-top: 12px;
         outline: none;
         background: white;
@@ -427,15 +572,16 @@ function Estilos() {
         background: #db2777;
         color: white;
         margin-top: 14px;
-        font-size: 16px;
       }
 
       .app {
+        width: 100%;
         max-width: 430px;
         margin: 0 auto;
         min-height: 100vh;
-        padding: 16px 16px 95px;
+        padding: 16px 16px 105px;
         background: #fff7fb;
+        overflow-x: hidden;
       }
 
       .topo {
@@ -454,8 +600,7 @@ function Estilos() {
         font-size: 27px;
       }
 
-      .topo p,
-      .topo small {
+      .topo p {
         margin: 0;
         opacity: 0.9;
       }
@@ -496,7 +641,7 @@ function Estilos() {
 
       .tituloLinha h2 {
         margin: 0;
-        font-size: 24px;
+        font-size: 23px;
       }
 
       .tituloLinha button {
@@ -504,6 +649,49 @@ function Estilos() {
         color: white;
         border-radius: 16px;
         padding: 12px 15px;
+      }
+
+      .calendario {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 8px;
+        background: white;
+        padding: 14px;
+        border-radius: 24px;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.07);
+      }
+
+      .dia {
+        height: 42px;
+        border-radius: 14px;
+        background: #fff1f7;
+        color: #777;
+        position: relative;
+      }
+
+      .dia.comAgenda {
+        background: #fce7f3;
+        color: #be185d;
+      }
+
+      .dia.selecionado {
+        background: #db2777;
+        color: white;
+      }
+
+      .dia span {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: #111827;
+        color: white;
+        border-radius: 999px;
+        width: 19px;
+        height: 19px;
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
       .card {
@@ -519,13 +707,14 @@ function Estilos() {
 
       .card h3 {
         margin: 0;
-        font-size: 20px;
+        font-size: 19px;
       }
 
       .card p {
         margin: 6px 0;
         color: #666;
         font-size: 14px;
+        text-transform: capitalize;
       }
 
       .card span {
@@ -565,6 +754,47 @@ function Estilos() {
         color: #dc2626;
       }
 
+      .dash {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin: 16px 0;
+      }
+
+      .dash div {
+        background: #fff1f7;
+        padding: 14px;
+        border-radius: 18px;
+      }
+
+      .dash span {
+        display: block;
+        font-size: 13px;
+        color: #777;
+      }
+
+      .dash strong {
+        display: block;
+        font-size: 26px;
+        margin-top: 4px;
+        color: #be185d;
+      }
+
+      .grafico {
+        height: 200px;
+        background: #fff1f7;
+        border-radius: 20px;
+        display: flex;
+        align-items: flex-end;
+        padding: 18px;
+      }
+
+      .grafico div {
+        width: 100%;
+        background: linear-gradient(180deg, #fb7185, #db2777);
+        border-radius: 16px 16px 6px 6px;
+      }
+
       .menu {
         position: fixed;
         left: 50%;
@@ -576,8 +806,8 @@ function Estilos() {
         border-radius: 24px;
         padding: 10px;
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
         box-shadow: 0 20px 45px rgba(0, 0, 0, 0.28);
       }
 
@@ -585,12 +815,12 @@ function Estilos() {
         background: transparent;
         color: white;
         border-radius: 16px;
-        padding: 10px 6px;
+        padding: 9px 4px;
       }
 
       .menu button span {
         display: block;
-        font-size: 11px;
+        font-size: 10px;
         margin-top: 4px;
       }
 
@@ -640,104 +870,6 @@ function Estilos() {
         color: #777;
         font-size: 14px;
       }
-
-      .barra {
-        height: 18px;
-        background: #fce7f3;
-        border-radius: 999px;
-        overflow: hidden;
-      }
-
-      .barra div {
-        height: 100%;
-        max-width: 100%;
-        background: #db2777;
-      }
-        .calendarioMes {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
-  background: white;
-  padding: 14px;
-  border-radius: 24px;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.07);
-}
-
-.diaMes {
-  height: 42px;
-  border-radius: 14px;
-  background: #fff1f7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  color: #777;
-}
-
-.diaMes strong {
-  font-size: 14px;
-}
-
-.ativoDia {
-  background: #db2777;
-  color: white;
-}
-
-.ativoDia span {
-  position: absolute;
-  right: -4px;
-  top: -4px;
-  background: #111827;
-  color: white;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.diaSemana {
-  margin-top: 16px;
-}
-
-.diaSemana > h3 {
-  margin: 0 0 10px;
-  font-size: 16px;
-  text-transform: capitalize;
-  color: #be185d;
-}
-
-.semAgenda {
-  background: white;
-  color: #999;
-  padding: 16px;
-  border-radius: 20px;
-  margin: 0 0 12px;
-}
-  html,
-body {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
-  touch-action: manipulation;
-  -webkit-text-size-adjust: 100%;
-}
-
-input,
-select,
-textarea,
-button {
-  font-size: 16px;
-}
-
-.app {
-  width: 100%;
-  max-width: 430px;
-  overflow-x: hidden;
-}
-
     `}</style>
   );
 }

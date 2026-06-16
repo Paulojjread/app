@@ -811,16 +811,16 @@ const [servicosSelecionados, setServicosSelecionados] = useState<string[]>(["Mã
               </div>
             </div>
 
-           <div className="servicosGrid">
+           <div className="servicosChecklist">
   {["Mão", "Pé", "Pé e Mão", "Plástica dos pés", "Sombrancelha"].map((item) => (
-    <button
-      type="button"
-      key={item}
-      className={servicosSelecionados.includes(item) ? "servicoAtivo" : "servicoOpcao"}
-      onClick={() => alternarServico(item)}
-    >
-      {item}
-    </button>
+    <label key={item} className="servicoCheck">
+      <input
+        type="checkbox"
+        checked={servicosSelecionados.includes(item)}
+        onChange={() => alternarServico(item)}
+      />
+      <span>{item}</span>
+    </label>
   ))}
 </div>
 
@@ -1452,6 +1452,34 @@ function Estilos() {
 .servicoAtivo {
   background: #db2777;
   color: white;
+}
+
+.servicosChecklist {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.servicoCheck {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff1f7;
+  color: #be185d;
+  padding: 12px;
+  border-radius: 14px;
+  font-weight: 800;
+}
+
+.servicoCheck input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: #db2777;
+}
+
+.servicoCheck span {
+  flex: 1;
 }
 
     `}</style>

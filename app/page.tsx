@@ -422,7 +422,7 @@ export default function Home() {
         {aba === "agenda" && (
           <>
             <section className="resumo">
-              <span>Faturamento</span>
+              <span>Faturamento confirmado no filtro atual</span>
               <strong>{formatarMoeda(financeiro.faturamento)}</strong>
             </section>
 

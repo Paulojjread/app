@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 
 type StatusAgendamento = "agendado" | "realizado" | "cancelado";
 type FormaPagamento = "Pix" | "Dinheiro" | "Cartão crédito" | "Cartão débito" | "Permuta";
-type Aba = "agenda" | "confirmar" | "historico" | "financeiro" | "config";
+type Aba = "agenda" | "atendimentos" | "financeiro" | "config";
 type FiltroFinanceiro = "mes" | "3" | "6" | "12" | "inicio";
 
 type Agendamento = {
@@ -489,36 +489,46 @@ export default function Home() {
           </>
         )}
 
-        {aba === "confirmar" && (
-          <div className="box">
-            <h2>Confirmar atendimentos</h2>
-            {confirmar.length === 0 && <p>Nenhum atendimento pendente.</p>}
-            {confirmar.map((item) => (
-              <div className="card" key={item.id}>
-                <div className="cardConteudo">
-                  <h3>{item.nome_cliente}</h3>
-                  <p>{formatarDataCompleta(item.data_atendimento, item.horario)}</p>
-                  <span>{item.servico}</span>
-                </div>
+        {aba === "atendimentos" && (
+          <div className="box atendimentosBox">
+            <h2>Atendimentos</h2>
 
-                <div className="lado">
-                  <strong>{formatarMoeda(Number(item.valor))}</strong>
-                  <button onClick={() => setPagamentoModal(item)}>Confirmar</button>
-                  <button onClick={() => abrirEditar(item)}>Remarcar</button>
-                  <button className="danger" onClick={() => marcarFalta(item.id)}>Falta</button>
-                </div>
+            <section className="subSecaoAtendimento">
+              <div className="subTituloLinha">
+                <h3>Para confirmar</h3>
+                <span>{confirmar.length}</span>
               </div>
-            ))}
-          </div>
-        )}
 
-        {aba === "historico" && (
-          <div className="box">
-            <h2>Atendimentos realizados</h2>
-            {realizados.length === 0 && <p>Nenhum atendimento realizado ainda.</p>}
-            {realizados.map((item) => (
-              <CardAgendamento key={item.id} item={item} onEditar={abrirEditar} onExcluir={excluir} mostrarPagamento />
-            ))}
+              {confirmar.length === 0 && <p>Nenhum atendimento pendente.</p>}
+              {confirmar.map((item) => (
+                <div className="card" key={item.id}>
+                  <div className="cardConteudo">
+                    <h3>{item.nome_cliente}</h3>
+                    <p>{formatarDataCompleta(item.data_atendimento, item.horario)}</p>
+                    <span>{item.servico}</span>
+                  </div>
+
+                  <div className="lado">
+                    <strong>{formatarMoeda(Number(item.valor))}</strong>
+                    <button onClick={() => setPagamentoModal(item)}>Confirmar</button>
+                    <button onClick={() => abrirEditar(item)}>Remarcar</button>
+                    <button className="danger" onClick={() => marcarFalta(item.id)}>Falta</button>
+                  </div>
+                </div>
+              ))}
+            </section>
+
+            <section className="subSecaoAtendimento realizadosSecao">
+              <div className="subTituloLinha">
+                <h3>Realizados</h3>
+                <span>{realizados.length}</span>
+              </div>
+
+              {realizados.length === 0 && <p>Nenhum atendimento realizado ainda.</p>}
+              {realizados.map((item) => (
+                <CardAgendamento key={item.id} item={item} onEditar={abrirEditar} onExcluir={excluir} mostrarPagamento />
+              ))}
+            </section>
           </div>
         )}
 
@@ -581,8 +591,7 @@ export default function Home() {
 
         <nav className="menu" aria-label="Menu principal">
           <MenuBotao ativo={aba === "agenda"} onClick={() => setAba("agenda")} emoji="📅" texto="Agenda" />
-          <MenuBotao ativo={aba === "confirmar"} onClick={() => setAba("confirmar")} emoji="⏳" texto="Confirmar" />
-          <MenuBotao ativo={aba === "historico"} onClick={() => setAba("historico")} emoji="✅" texto="Realizados" />
+          <MenuBotao ativo={aba === "atendimentos"} onClick={() => setAba("atendimentos")} emoji="✅" texto="Atendimentos" />
           <MenuBotao ativo={aba === "financeiro"} onClick={() => setAba("financeiro")} emoji="💰" texto="Financeiro" />
           <MenuBotao ativo={aba === "config"} onClick={() => setAba("config")} emoji="⚙️" texto="Preços" />
         </nav>
@@ -598,7 +607,7 @@ export default function Home() {
               <input placeholder="Ex: Fernanda" value={nome} onChange={(evento) => setNome(evento.target.value)} />
             </div>
 
-            <div className="formGrid">
+            <div className="formGrid formGridDataHora">
               <div className="campo">
                 <label>Data</label>
                 <input type="date" value={data} onChange={(evento) => setData(evento.target.value)} />
@@ -897,7 +906,7 @@ function Estilos() {
         border-radius: 24px;
         padding: 10px;
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 6px;
         box-shadow: 0 20px 45px rgba(0, 0, 0, 0.28);
         z-index: 10;
@@ -942,6 +951,65 @@ function Estilos() {
       .servicoCheck { display: flex; align-items: center; gap: 10px; background: #fff1f7; color: #be185d; padding: 12px; border-radius: 14px; font-weight: 800; }
       .servicoCheck input { width: 20px; height: 20px; margin: 0; accent-color: #db2777; flex: none; }
       .servicoCheck span { flex: 1; }
+
+
+      .atendimentosBox > h2 {
+        margin-top: 0;
+      }
+
+      .subSecaoAtendimento {
+        margin-top: 18px;
+      }
+
+      .realizadosSecao {
+        border-top: 1px solid #fce7f3;
+        padding-top: 18px;
+      }
+
+      .subTituloLinha {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .subTituloLinha h3 {
+        margin: 0;
+        color: #be185d;
+        font-size: 18px;
+      }
+
+      .subTituloLinha span {
+        min-width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #fce7f3;
+        color: #be185d;
+        font-weight: 800;
+      }
+
+      .formGridDataHora {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: end;
+      }
+
+      .formGridDataHora .campo {
+        min-width: 0;
+      }
+
+      .formGridDataHora input {
+        min-width: 0;
+      }
+
+      @media (max-width: 430px) {
+        .formGridDataHora {
+          grid-template-columns: 1fr;
+        }
+      }
 
       @media (max-width: 380px) {
         .app { padding-left: 10px; padding-right: 10px; }

@@ -262,8 +262,10 @@ export default function Home() {
                   <button
                     key={dia}
                     className={`dia ${qtd > 0 ? "comAgenda" : ""} ${
-                      diaSelecionado === dia ? "selecionado" : ""
-                    }`}
+  diaSelecionado === dia ? "selecionado" : ""
+} ${
+  dia === new Date().toISOString().slice(0, 10) ? "hoje" : ""
+}`}
                     onClick={() => setDiaSelecionado(dia)}
                   >
                     <strong>{Number(dia.slice(8, 10))}</strong>
@@ -454,19 +456,53 @@ export default function Home() {
         <div className="modal">
           <div className="modalBox">
             <h2>{editando ? "Reagendar cliente" : "Novo agendamento"}</h2>
+<div className="campo">
+  <label>Nome da cliente</label>
+  <input
+    placeholder="Ex: Fernanda"
+    value={nome}
+    onChange={(e) => setNome(e.target.value)}
+  />
+</div>
 
-            <input placeholder="Nome da cliente" value={nome} onChange={(e) => setNome(e.target.value)} />
-            <input type="date" value={data} onChange={(e) => setData(e.target.value)} />
-            <input type="time" value={horario} onChange={(e) => setHorario(e.target.value)} />
+<div className="formGrid">
+  <div className="campo">
+    <label>Data</label>
+    <input
+      type="date"
+      value={data}
+      onChange={(e) => setData(e.target.value)}
+    />
+  </div>
 
-            <select value={servico} onChange={(e) => trocarServico(e.target.value)}>
-              <option>Mão</option>
-              <option>Pé</option>
-              <option>Pé e Mão</option>
-            </select>
+  <div className="campo">
+    <label>Horário</label>
+    <input
+      type="time"
+      value={horario}
+      onChange={(e) => setHorario(e.target.value)}
+    />
+  </div>
+</div>
 
-            <input type="number" placeholder="Valor" value={valor} onChange={(e) => setValor(e.target.value)} />
+<div className="campo">
+  <label>Serviço</label>
+  <select value={servico} onChange={(e) => trocarServico(e.target.value)}>
+    <option>Mão</option>
+    <option>Pé</option>
+    <option>Pé e Mão</option>
+  </select>
+</div>
 
+<div className="campo">
+  <label>Valor cobrado</label>
+  <input
+    type="number"
+    placeholder="Ex: 60"
+    value={valor}
+    onChange={(e) => setValor(e.target.value)}
+  />
+</div>
             <button onClick={salvar}>Salvar</button>
             <button className="cancelar" onClick={() => setModal(false)}>Cancelar</button>
           </div>
@@ -668,6 +704,10 @@ function Estilos() {
         color: #777;
         position: relative;
       }
+        
+      .dia.hoje {
+      border: 3px solid #111827;
+    }
 
       .dia.comAgenda {
         background: #fce7f3;
@@ -870,6 +910,32 @@ function Estilos() {
         color: #777;
         font-size: 14px;
       }
+
+.campo {
+  margin-top: 12px;
+}
+
+.campo label {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  color: #be185d;
+  margin-bottom: 6px;
+}
+
+.campo input,
+.campo select {
+  margin-top: 0;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+
+
     `}</style>
   );
 }

@@ -77,6 +77,26 @@ function inicioFiltroFinanceiro(filtro: FiltroFinanceiro, referencia = new Date(
   return inicio;
 }
 
+
+function formatarMesCurto(data: Date) {
+  return data.toLocaleDateString("pt-BR", {
+    month: "short",
+    year: "2-digit",
+  });
+}
+
+function chaveMes(data: Date) {
+  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function tituloFiltroFinanceiro(filtro: FiltroFinanceiro) {
+  if (filtro === "mes") return "Último mês";
+  if (filtro === "3") return "Últimos 3 meses";
+  if (filtro === "6") return "Últimos 6 meses";
+  if (filtro === "12") return "Último 1 ano";
+  return "Desde o início";
+}
+
 export default function Home() {
   const [login, setLogin] = useState("");
   const [logado, setLogado] = useState(false);
@@ -233,6 +253,74 @@ export default function Home() {
 
     return { totais, faturamento, atendimentos: realizadosFiltrados.length };
   }, [realizadosFiltrados]);
+
+
+  const graficoFaturamento = useMemo(() => {
+    const hojeReferencia = new Date();
+
+    if (filtroFinanceiro === "mes") {
+      const ano = hojeReferencia.getFullYear();
+      const mes = hojeReferencia.getMonth();
+      const diasNoMes = hojeReferencia.getDate();
+      const totaisPorDia = new Map<string, number>();
+
+      for (let dia = 1; dia <= diasNoMes; dia += 1) {
+        const chave = String(dia).padStart(2, "0");
+        totaisPorDia.set(chave, 0);
+      }
+
+      for (const item of realizadosFiltrados) {
+        const dataItem = criarDataHora(item.data_atendimento, item.horario);
+        if (dataItem.getFullYear() === ano && dataItem.getMonth() === mes) {
+          const chave = String(dataItem.getDate()).padStart(2, "0");
+          totaisPorDia.set(chave, (totaisPorDia.get(chave) || 0) + (Number(item.valor) || 0));
+        }
+      }
+
+      return Array.from(totaisPorDia.entries()).map(([dia, total]) => ({
+        label: dia,
+        valor: total,
+      }));
+    }
+
+    const meses: Date[] = [];
+
+    if (filtroFinanceiro === "inicio") {
+      const primeiroRealizado = [...realizados]
+        .sort((a, b) => a.data_atendimento.localeCompare(b.data_atendimento))[0];
+      const inicio = primeiroRealizado
+        ? criarDataHora(primeiroRealizado.data_atendimento, primeiroRealizado.horario)
+        : new Date(hojeReferencia.getFullYear(), hojeReferencia.getMonth(), 1);
+
+      let cursor = new Date(inicio.getFullYear(), inicio.getMonth(), 1);
+      const fim = new Date(hojeReferencia.getFullYear(), hojeReferencia.getMonth(), 1);
+
+      while (cursor <= fim) {
+        meses.push(new Date(cursor));
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+    } else {
+      const quantidadeMeses = Number(filtroFinanceiro);
+      for (let indice = quantidadeMeses - 1; indice >= 0; indice -= 1) {
+        meses.push(new Date(hojeReferencia.getFullYear(), hojeReferencia.getMonth() - indice, 1));
+      }
+    }
+
+    const totaisPorMes = new Map(meses.map((mes) => [chaveMes(mes), 0]));
+
+    for (const item of realizadosFiltrados) {
+      const dataItem = criarDataHora(item.data_atendimento, item.horario);
+      const chave = chaveMes(dataItem);
+      if (totaisPorMes.has(chave)) {
+        totaisPorMes.set(chave, (totaisPorMes.get(chave) || 0) + (Number(item.valor) || 0));
+      }
+    }
+
+    return meses.map((mes) => ({
+      label: formatarMesCurto(mes),
+      valor: totaisPorMes.get(chaveMes(mes)) || 0,
+    }));
+  }, [filtroFinanceiro, realizados, realizadosFiltrados]);
 
   const agendamentosPorDia = useMemo(() => {
     const mapa = new Map<string, Agendamento[]>();
@@ -543,7 +631,7 @@ export default function Home() {
               <h2>Financeiro</h2>
 
               <select value={filtroFinanceiro} onChange={(evento) => setFiltroFinanceiro(evento.target.value as FiltroFinanceiro)}>
-                <option value="mes">Este mês</option>
+                <option value="mes">Último mês</option>
                 <option value="3">Últimos 3 meses</option>
                 <option value="6">Últimos 6 meses</option>
                 <option value="12">Último 1 ano</option>
@@ -557,20 +645,10 @@ export default function Home() {
                 ))}
               </div>
 
-              <h3>Pagamentos recebidos</h3>
-              <div className="pagamentosGrafico">
-                {FORMAS_PAGAMENTO.map((forma) => {
-                  const total = financeiro.faturamento || 1;
-                  const porcentagem = Math.round((financeiro.totais[forma] / total) * 100);
-
-                  return (
-                    <div className="linhaGrafico" key={forma}>
-                      <p>{forma} <b>{formatarMoeda(financeiro.totais[forma])}</b></p>
-                      <div><span style={{ width: `${porcentagem}%` }} /></div>
-                    </div>
-                  );
-                })}
-              </div>
+              <GraficoLinhaFaturamento
+                dados={graficoFaturamento}
+                titulo={`Faturamento - ${tituloFiltroFinanceiro(filtroFinanceiro)}`}
+              />
             </div>
           </>
         )}
@@ -696,6 +774,58 @@ function CardAgendamento({
         <button className="danger" onClick={() => onExcluir(item.id)}>Excluir</button>
       </div>
     </div>
+  );
+}
+
+
+function GraficoLinhaFaturamento({ dados, titulo }: { dados: { label: string; valor: number }[]; titulo: string }) {
+  const largura = 320;
+  const altura = 190;
+  const paddingX = 34;
+  const paddingTop = 24;
+  const paddingBottom = 36;
+  const maiorValor = Math.max(...dados.map((item) => item.valor), 1);
+  const larguraUtil = largura - paddingX * 2;
+  const alturaUtil = altura - paddingTop - paddingBottom;
+
+  const pontos = dados.map((item, indice) => {
+    const x = dados.length === 1 ? largura / 2 : paddingX + (indice / (dados.length - 1)) * larguraUtil;
+    const y = paddingTop + alturaUtil - (item.valor / maiorValor) * alturaUtil;
+    return { ...item, x, y };
+  });
+
+  const caminho = pontos.map((ponto, indice) => `${indice === 0 ? "M" : "L"} ${ponto.x} ${ponto.y}`).join(" ");
+  const area = `${caminho} L ${pontos[pontos.length - 1]?.x || paddingX} ${altura - paddingBottom} L ${pontos[0]?.x || paddingX} ${altura - paddingBottom} Z`;
+  const mostrarTodosRotulos = pontos.length <= 6;
+
+  return (
+    <section className="graficoLinhaBox">
+      <div className="graficoLinhaTopo">
+        <div>
+          <h3>{titulo}</h3>
+          <p>Evolução do faturamento confirmado.</p>
+        </div>
+        <strong>{formatarMoeda(dados.reduce((soma, item) => soma + item.valor, 0))}</strong>
+      </div>
+
+      <svg className="graficoLinha" viewBox={`0 0 ${largura} ${altura}`} role="img" aria-label={titulo}>
+        <line x1={paddingX} y1={paddingTop} x2={paddingX} y2={altura - paddingBottom} />
+        <line x1={paddingX} y1={altura - paddingBottom} x2={largura - paddingX} y2={altura - paddingBottom} />
+        <path className="graficoArea" d={area} />
+        <path className="graficoCaminho" d={caminho} />
+
+        {pontos.map((ponto, indice) => (
+          <g key={`${ponto.label}-${indice}`}>
+            <circle cx={ponto.x} cy={ponto.y} r="4" />
+            {(mostrarTodosRotulos || indice === 0 || indice === pontos.length - 1 || indice % 2 === 0) && (
+              <text x={ponto.x} y={altura - 12} textAnchor="middle">
+                {ponto.label}
+              </text>
+            )}
+          </g>
+        ))}
+      </svg>
+    </section>
   );
 }
 
@@ -890,10 +1020,60 @@ function Estilos() {
       .dash span { display: block; font-size: 13px; color: #777; }
       .dash strong { display: block; font-size: clamp(19px, 5vw, 26px); margin-top: 4px; color: #be185d; word-break: break-word; }
 
-      .pagamentosGrafico { margin-top: 18px; }
-      .linhaGrafico p { display: flex; justify-content: space-between; gap: 12px; margin: 14px 0 6px; font-size: 14px; }
-      .linhaGrafico div { height: 12px; background: #f3f4f6; border-radius: 999px; overflow: hidden; }
-      .linhaGrafico span { display: block; height: 100%; background: linear-gradient(90deg, #fb7185, #db2777); }
+      .graficoLinhaBox {
+        margin-top: 18px;
+        background: #fff1f7;
+        border-radius: 22px;
+        padding: 16px;
+        overflow: hidden;
+      }
+
+      .graficoLinhaTopo {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+
+      .graficoLinhaTopo h3 { margin: 0; color: #be185d; font-size: 18px; }
+      .graficoLinhaTopo p { margin: 5px 0 0; color: #777; font-size: 13px; }
+      .graficoLinhaTopo strong { color: #be185d; white-space: nowrap; }
+
+      .graficoLinha {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .graficoLinha line {
+        stroke: #f9a8d4;
+        stroke-width: 1;
+      }
+
+      .graficoArea {
+        fill: rgba(219, 39, 119, 0.12);
+      }
+
+      .graficoCaminho {
+        fill: none;
+        stroke: #db2777;
+        stroke-width: 4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .graficoLinha circle {
+        fill: #db2777;
+        stroke: white;
+        stroke-width: 2;
+      }
+
+      .graficoLinha text {
+        fill: #777;
+        font-size: 10px;
+        font-weight: 700;
+      }
 
       .menu {
         position: fixed;

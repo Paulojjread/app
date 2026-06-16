@@ -779,46 +779,81 @@ function CardAgendamento({
 
 
 function GraficoLinhaFaturamento({ dados, titulo }: { dados: { label: string; valor: number }[]; titulo: string }) {
-  const largura = 320;
-  const altura = 190;
-  const paddingX = 34;
-  const paddingTop = 24;
-  const paddingBottom = 36;
+  const largura = 360;
+  const altura = 230;
+  const paddingEsquerda = 52;
+  const paddingDireita = 18;
+  const paddingTopo = 26;
+  const paddingBaixo = 42;
+  const total = dados.reduce((soma, item) => soma + item.valor, 0);
+  const media = dados.length > 0 ? total / dados.length : 0;
+  const melhorPeriodo = dados.reduce(
+    (melhor, item) => (item.valor > melhor.valor ? item : melhor),
+    dados[0] || { label: "-", valor: 0 },
+  );
   const maiorValor = Math.max(...dados.map((item) => item.valor), 1);
-  const larguraUtil = largura - paddingX * 2;
-  const alturaUtil = altura - paddingTop - paddingBottom;
+  const escalaMaxima = Math.ceil(maiorValor / 50) * 50 || 50;
+  const larguraUtil = largura - paddingEsquerda - paddingDireita;
+  const alturaUtil = altura - paddingTopo - paddingBaixo;
 
   const pontos = dados.map((item, indice) => {
-    const x = dados.length === 1 ? largura / 2 : paddingX + (indice / (dados.length - 1)) * larguraUtil;
-    const y = paddingTop + alturaUtil - (item.valor / maiorValor) * alturaUtil;
+    const x = dados.length === 1 ? paddingEsquerda + larguraUtil / 2 : paddingEsquerda + (indice / (dados.length - 1)) * larguraUtil;
+    const y = paddingTopo + alturaUtil - (item.valor / escalaMaxima) * alturaUtil;
     return { ...item, x, y };
   });
 
   const caminho = pontos.map((ponto, indice) => `${indice === 0 ? "M" : "L"} ${ponto.x} ${ponto.y}`).join(" ");
-  const area = `${caminho} L ${pontos[pontos.length - 1]?.x || paddingX} ${altura - paddingBottom} L ${pontos[0]?.x || paddingX} ${altura - paddingBottom} Z`;
-  const mostrarTodosRotulos = pontos.length <= 6;
+  const area = pontos.length
+    ? `${caminho} L ${pontos[pontos.length - 1].x} ${altura - paddingBaixo} L ${pontos[0].x} ${altura - paddingBaixo} Z`
+    : "";
+  const linhasGrade = Array.from({ length: 5 }, (_, indice) => {
+    const valor = (escalaMaxima / 4) * indice;
+    const y = paddingTopo + alturaUtil - (valor / escalaMaxima) * alturaUtil;
+    return { valor, y };
+  });
+  const mostrarRotulo = (indice: number) => pontos.length <= 6 || indice === 0 || indice === pontos.length - 1 || indice % Math.ceil(pontos.length / 5) === 0;
 
   return (
-    <section className="graficoLinhaBox">
-      <div className="graficoLinhaTopo">
+    <section className="graficoProfissionalBox">
+      <div className="graficoProfissionalTopo">
         <div>
+          <span>Ganhos confirmados</span>
           <h3>{titulo}</h3>
-          <p>Evolução do faturamento confirmado.</p>
         </div>
-        <strong>{formatarMoeda(dados.reduce((soma, item) => soma + item.valor, 0))}</strong>
+        <strong>{formatarMoeda(total)}</strong>
       </div>
 
-      <svg className="graficoLinha" viewBox={`0 0 ${largura} ${altura}`} role="img" aria-label={titulo}>
-        <line x1={paddingX} y1={paddingTop} x2={paddingX} y2={altura - paddingBottom} />
-        <line x1={paddingX} y1={altura - paddingBottom} x2={largura - paddingX} y2={altura - paddingBottom} />
-        <path className="graficoArea" d={area} />
-        <path className="graficoCaminho" d={caminho} />
+      <div className="metricasGrafico">
+        <div><span>Média</span><strong>{formatarMoeda(media)}</strong></div>
+        <div><span>Melhor período</span><strong>{melhorPeriodo.label}</strong></div>
+        <div><span>Maior ganho</span><strong>{formatarMoeda(melhorPeriodo.valor)}</strong></div>
+      </div>
+
+      <svg className="graficoProfissional" viewBox={`0 0 ${largura} ${altura}`} role="img" aria-label={titulo}>
+        <defs>
+          <linearGradient id="gradienteFaturamento" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#db2777" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#db2777" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+
+        {linhasGrade.map((linha) => (
+          <g key={linha.valor}>
+            <line className="gradeGrafico" x1={paddingEsquerda} y1={linha.y} x2={largura - paddingDireita} y2={linha.y} />
+            <text className="eixoValor" x={paddingEsquerda - 8} y={linha.y + 4} textAnchor="end">
+              {formatarMoeda(linha.valor).replace("R$", "")}
+            </text>
+          </g>
+        ))}
+
+        <path className="areaGraficoProfissional" d={area} />
+        <path className="linhaGraficoProfissional" d={caminho} />
 
         {pontos.map((ponto, indice) => (
           <g key={`${ponto.label}-${indice}`}>
-            <circle cx={ponto.x} cy={ponto.y} r="4" />
-            {(mostrarTodosRotulos || indice === 0 || indice === pontos.length - 1 || indice % 2 === 0) && (
-              <text x={ponto.x} y={altura - 12} textAnchor="middle">
+            <circle className="pontoGrafico" cx={ponto.x} cy={ponto.y} r="4.5" />
+            {mostrarRotulo(indice) && (
+              <text className="eixoData" x={ponto.x} y={altura - 14} textAnchor="middle">
                 {ponto.label}
               </text>
             )}
@@ -1020,59 +1055,79 @@ function Estilos() {
       .dash span { display: block; font-size: 13px; color: #777; }
       .dash strong { display: block; font-size: clamp(19px, 5vw, 26px); margin-top: 4px; color: #be185d; word-break: break-word; }
 
-      .graficoLinhaBox {
+      .graficoProfissionalBox {
         margin-top: 18px;
-        background: #fff1f7;
-        border-radius: 22px;
+        background: linear-gradient(180deg, #fff7fb, #fff1f7);
+        border: 1px solid #fbcfe8;
+        border-radius: 24px;
         padding: 16px;
         overflow: hidden;
       }
 
-      .graficoLinhaTopo {
+      .graficoProfissionalTopo {
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
         gap: 12px;
-        margin-bottom: 8px;
+        margin-bottom: 14px;
       }
 
-      .graficoLinhaTopo h3 { margin: 0; color: #be185d; font-size: 18px; }
-      .graficoLinhaTopo p { margin: 5px 0 0; color: #777; font-size: 13px; }
-      .graficoLinhaTopo strong { color: #be185d; white-space: nowrap; }
+      .graficoProfissionalTopo span { display: block; color: #777; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+      .graficoProfissionalTopo h3 { margin: 4px 0 0; color: #be185d; font-size: 18px; }
+      .graficoProfissionalTopo strong { color: #be185d; font-size: 20px; white-space: nowrap; }
 
-      .graficoLinha {
+      .metricasGrafico {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .metricasGrafico div {
+        background: white;
+        border: 1px solid #fce7f3;
+        border-radius: 16px;
+        padding: 10px;
+        min-width: 0;
+      }
+
+      .metricasGrafico span { display: block; color: #777; font-size: 11px; font-weight: 800; }
+      .metricasGrafico strong { display: block; color: #be185d; font-size: 13px; margin-top: 4px; word-break: break-word; }
+
+      .graficoProfissional {
         width: 100%;
         height: auto;
         display: block;
       }
 
-      .graficoLinha line {
-        stroke: #f9a8d4;
+      .gradeGrafico {
+        stroke: #f3d4e2;
         stroke-width: 1;
       }
 
-      .graficoArea {
-        fill: rgba(219, 39, 119, 0.12);
+      .areaGraficoProfissional {
+        fill: url(#gradienteFaturamento);
       }
 
-      .graficoCaminho {
+      .linhaGraficoProfissional {
         fill: none;
         stroke: #db2777;
         stroke-width: 4;
         stroke-linecap: round;
         stroke-linejoin: round;
+        filter: drop-shadow(0 5px 8px rgba(219, 39, 119, 0.22));
       }
 
-      .graficoLinha circle {
+      .pontoGrafico {
         fill: #db2777;
         stroke: white;
-        stroke-width: 2;
+        stroke-width: 2.5;
       }
 
-      .graficoLinha text {
+      .eixoValor, .eixoData {
         fill: #777;
         font-size: 10px;
-        font-weight: 700;
+        font-weight: 800;
       }
 
       .menu {
@@ -1175,19 +1230,31 @@ function Estilos() {
       .formGridDataHora {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         align-items: end;
+        gap: 10px;
       }
 
       .formGridDataHora .campo {
         min-width: 0;
+        margin-top: 12px;
       }
 
       .formGridDataHora input {
         min-width: 0;
+        height: 48px;
+        padding: 11px 12px;
+        border-radius: 14px;
       }
 
       @media (max-width: 430px) {
         .formGridDataHora {
-          grid-template-columns: 1fr;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .formGridDataHora input {
+          height: 46px;
+          padding: 9px 8px;
+          font-size: 14px;
         }
       }
 
@@ -1200,6 +1267,7 @@ function Estilos() {
         .lado strong { grid-column: 1 / -1; }
         .lado button { margin-top: 0; }
         .formGrid { grid-template-columns: 1fr; }
+        .formGridDataHora { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .menu button span { font-size: 9px; }
       }
     `}</style>

@@ -786,11 +786,6 @@ function GraficoLinhaFaturamento({ dados, titulo }: { dados: { label: string; va
   const paddingTopo = 26;
   const paddingBaixo = 42;
   const total = dados.reduce((soma, item) => soma + item.valor, 0);
-  const media = dados.length > 0 ? total / dados.length : 0;
-  const melhorPeriodo = dados.reduce(
-    (melhor, item) => (item.valor > melhor.valor ? item : melhor),
-    dados[0] || { label: "-", valor: 0 },
-  );
   const maiorValor = Math.max(...dados.map((item) => item.valor), 1);
   const escalaMaxima = Math.ceil(maiorValor / 50) * 50 || 50;
   const larguraUtil = largura - paddingEsquerda - paddingDireita;
@@ -823,11 +818,6 @@ function GraficoLinhaFaturamento({ dados, titulo }: { dados: { label: string; va
         <strong>{formatarMoeda(total)}</strong>
       </div>
 
-      <div className="metricasGrafico">
-        <div><span>Média</span><strong>{formatarMoeda(media)}</strong></div>
-        <div><span>Melhor período</span><strong>{melhorPeriodo.label}</strong></div>
-        <div><span>Maior ganho</span><strong>{formatarMoeda(melhorPeriodo.valor)}</strong></div>
-      </div>
 
       <svg className="graficoProfissional" viewBox={`0 0 ${largura} ${altura}`} role="img" aria-label={titulo}>
         <defs>
@@ -886,8 +876,8 @@ function Estilos() {
 
       input, select {
         width: 100%;
-        padding: 15px;
-        border-radius: 16px;
+        padding: 11px 12px;
+        border-radius: 14px;
         border: 1px solid #f9a8d4;
         outline: none;
         background: white;
@@ -1076,23 +1066,6 @@ function Estilos() {
       .graficoProfissionalTopo h3 { margin: 4px 0 0; color: #be185d; font-size: 18px; }
       .graficoProfissionalTopo strong { color: #be185d; font-size: 20px; white-space: nowrap; }
 
-      .metricasGrafico {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 8px;
-        margin-bottom: 10px;
-      }
-
-      .metricasGrafico div {
-        background: white;
-        border: 1px solid #fce7f3;
-        border-radius: 16px;
-        padding: 10px;
-        min-width: 0;
-      }
-
-      .metricasGrafico span { display: block; color: #777; font-size: 11px; font-weight: 800; }
-      .metricasGrafico strong { display: block; color: #be185d; font-size: 13px; margin-top: 4px; word-break: break-word; }
 
       .graficoProfissional {
         width: 100%;
@@ -1163,18 +1136,18 @@ function Estilos() {
       }
 
       .modalBox {
-        width: 100%;
-        max-width: 390px;
-        max-height: calc(100dvh - 36px);
+        width: min(100%, 340px);
+        max-height: 85dvh;
         overflow-y: auto;
         background: white;
-        border-radius: 28px;
-        padding: 22px;
+        border-radius: 24px;
+        padding: 18px;
         box-shadow: 0 25px 70px rgba(0, 0, 0, 0.28);
       }
 
-      .modalBox h2 { margin: 0 0 10px; }
+      .modalBox h2 { margin: 0 0 8px; font-size: 20px; }
       .modalBox p { color: #555; margin: 10px 0 16px; }
+      .modalBox button { padding: 11px; margin-top: 10px; border-radius: 14px; }
       .modalBox .cancelar { background: #f3f4f6; color: #374151; }
 
       .campo, .preco { margin-top: 12px; }
@@ -1182,8 +1155,8 @@ function Estilos() {
       .formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
       .aviso { color: #777; font-size: 14px; }
 
-      .servicosChecklist { display: grid; gap: 10px; margin-top: 12px; }
-      .servicoCheck { display: flex; align-items: center; gap: 10px; background: #fff1f7; color: #be185d; padding: 12px; border-radius: 14px; font-weight: 800; }
+      .servicosChecklist { display: grid; gap: 8px; margin-top: 10px; }
+      .servicoCheck { display: flex; align-items: center; gap: 10px; background: #fff1f7; color: #be185d; padding: 8px 10px; border-radius: 13px; font-weight: 800; font-size: 13px; }
       .servicoCheck input { width: 20px; height: 20px; margin: 0; accent-color: #db2777; flex: none; }
       .servicoCheck span { flex: 1; }
 
@@ -1228,34 +1201,28 @@ function Estilos() {
       }
 
       .formGridDataHora {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        align-items: end;
-        gap: 10px;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        gap: 8px;
       }
 
       .formGridDataHora .campo {
         min-width: 0;
-        margin-top: 12px;
+        margin-top: 8px;
       }
 
       .formGridDataHora input {
         min-width: 0;
-        height: 48px;
-        padding: 11px 12px;
-        border-radius: 14px;
+        height: 42px;
+        padding: 9px 10px;
+        border-radius: 12px;
       }
 
       @media (max-width: 430px) {
-        .formGridDataHora {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 8px;
-        }
-
-        .formGridDataHora input {
-          height: 46px;
-          padding: 9px 8px;
-          font-size: 14px;
-        }
+        .modal { padding: 12px; align-items: center; }
+        .modalBox { width: min(100%, 330px); max-height: 82dvh; padding: 16px; }
+        .formGridDataHora { grid-template-columns: 1fr; gap: 8px; }
+        .formGridDataHora input { height: 40px; padding: 8px 10px; font-size: 14px; }
       }
 
       @media (max-width: 380px) {
@@ -1267,7 +1234,7 @@ function Estilos() {
         .lado strong { grid-column: 1 / -1; }
         .lado button { margin-top: 0; }
         .formGrid { grid-template-columns: 1fr; }
-        .formGridDataHora { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .formGridDataHora { grid-template-columns: 1fr; }
         .menu button span { font-size: 9px; }
       }
     `}</style>

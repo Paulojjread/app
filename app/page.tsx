@@ -58,8 +58,7 @@ export default function Home() {
   const [nome, setNome] = useState("");
   const [data, setData] = useState("");
   const [horario, setHorario] = useState("");
-  const [servico, setServico] = useState("Mão");
-  const [valor, setValor] = useState("");
+const [servicosSelecionados, setServicosSelecionados] = useState<string[]>(["Mão"]);  const [valor, setValor] = useState("");
 
   async function carregar() {
     const { data: agenda } = await supabase
@@ -278,7 +277,7 @@ export default function Home() {
     setNome("");
     setData(diaSelecionado || "");
     setHorario("");
-    setServico("Mão");
+    setServicosSelecionados(["Mão"]);
 
     const preco = precos.find((p) => p.servico === "Mão");
     setValor(String(preco?.valor || ""));
@@ -291,17 +290,27 @@ export default function Home() {
     setNome(item.nome_cliente);
     setData(item.data_atendimento);
     setHorario(item.horario.slice(0, 5));
-    setServico(item.servico);
+    setServicosSelecionados(item.servico.split(", "));
     setValor(String(item.valor));
     setModal(true);
   }
 
-  function trocarServico(novoServico: string) {
-    setServico(novoServico);
+  function alternarServico(nomeServico: string) {
+  const jaSelecionado = servicosSelecionados.includes(nomeServico);
 
-    const preco = precos.find((p) => p.servico === novoServico);
-    if (preco) setValor(String(preco.valor));
-  }
+  const novaLista = jaSelecionado
+    ? servicosSelecionados.filter((s) => s !== nomeServico)
+    : [...servicosSelecionados, nomeServico];
+
+  setServicosSelecionados(novaLista);
+
+  const total = novaLista.reduce((soma, servico) => {
+    const preco = precos.find((p) => p.servico === servico);
+    return soma + Number(preco?.valor || 0);
+  }, 0);
+
+  setValor(String(total));
+}
 
   async function salvar() {
     if (!nome || !data || !horario || !valor) {
@@ -313,7 +322,7 @@ export default function Home() {
       nome_cliente: nome,
       data_atendimento: data,
       horario,
-      servico,
+      servico: servicosSelecionados.join(", "),
       valor: Number(valor),
       status: "agendado",
     };
@@ -802,17 +811,18 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="campo">
-              <label>Serviço</label>
-              <select
-                value={servico}
-                onChange={(e) => trocarServico(e.target.value)}
-              >
-                <option>Mão</option>
-                <option>Pé</option>
-                <option>Pé e Mão</option>
-              </select>
-            </div>
+           <div className="servicosGrid">
+  {["Mão", "Pé", "Pé e Mão", "Plástica dos pés", "Sombrancelha"].map((item) => (
+    <button
+      type="button"
+      key={item}
+      className={servicosSelecionados.includes(item) ? "servicoAtivo" : "servicoOpcao"}
+      onClick={() => alternarServico(item)}
+    >
+      {item}
+    </button>
+  ))}
+</div>
 
             <div className="campo">
               <label>Valor cobrado</label>
@@ -1418,6 +1428,30 @@ function Estilos() {
 
 .menu {
   grid-template-columns: repeat(5, 1fr);
+}
+
+.servicosGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.servicoOpcao,
+.servicoAtivo {
+  padding: 12px;
+  border-radius: 14px;
+  font-size: 14px;
+}
+
+.servicoOpcao {
+  background: #fff1f7;
+  color: #be185d;
+}
+
+.servicoAtivo {
+  background: #db2777;
+  color: white;
 }
 
     `}</style>

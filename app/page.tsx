@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 type StatusAgendamento = "agendado" | "realizado" | "cancelado";
@@ -160,13 +160,10 @@ export default function Home() {
     setCarregando(false);
   }, []);
 
-  useEffect(() => {
-    if (logado) void carregar();
-  }, [logado, carregar]);
-
   function entrar() {
     if (login.trim().toLowerCase() === "suziane") {
       setLogado(true);
+      void carregar();
       return;
     }
 
@@ -254,6 +251,21 @@ export default function Home() {
     return { totais, faturamento, atendimentos: realizadosFiltrados.length };
   }, [realizadosFiltrados]);
 
+  const faturamentoMesAtual = useMemo(() => {
+    const referencia = new Date();
+    const ano = referencia.getFullYear();
+    const mes = referencia.getMonth();
+
+    return realizados.reduce((total, item) => {
+      const dataItem = criarDataHora(item.data_atendimento, item.horario);
+      if (dataItem.getFullYear() !== ano || dataItem.getMonth() !== mes) {
+        return total;
+      }
+
+      return total + (Number(item.valor) || 0);
+    }, 0);
+  }, [realizados]);
+
 
   const graficoFaturamento = useMemo(() => {
     const hojeReferencia = new Date();
@@ -292,7 +304,7 @@ export default function Home() {
         ? criarDataHora(primeiroRealizado.data_atendimento, primeiroRealizado.horario)
         : new Date(hojeReferencia.getFullYear(), hojeReferencia.getMonth(), 1);
 
-      let cursor = new Date(inicio.getFullYear(), inicio.getMonth(), 1);
+      const cursor = new Date(inicio.getFullYear(), inicio.getMonth(), 1);
       const fim = new Date(hojeReferencia.getFullYear(), hojeReferencia.getMonth(), 1);
 
       while (cursor <= fim) {
@@ -510,8 +522,8 @@ export default function Home() {
         {aba === "agenda" && (
           <>
             <section className="resumo">
-              <span>Faturamento confirmado no filtro atual</span>
-              <strong>{formatarMoeda(financeiro.faturamento)}</strong>
+              <span>Faturamento mês</span>
+              <strong>{formatarMoeda(faturamentoMesAtual)}</strong>
             </section>
 
             <div className="calHeader">
@@ -677,7 +689,7 @@ export default function Home() {
 
       {modal && (
         <div className="modal" role="dialog" aria-modal="true">
-          <div className="modalBox">
+          <div className="modalBox modalBoxAgendamento">
             <h2>{editando ? "Editar agendamento" : "Novo agendamento"}</h2>
 
             <div className="campo">
@@ -685,7 +697,7 @@ export default function Home() {
               <input placeholder="Ex: Fernanda" value={nome} onChange={(evento) => setNome(evento.target.value)} />
             </div>
 
-            <div className="formGrid formGridDataHora">
+            <div className="formGridDataHora">
               <div className="campo">
                 <label>Data</label>
                 <input type="date" value={data} onChange={(evento) => setData(evento.target.value)} />
@@ -1145,12 +1157,22 @@ function Estilos() {
         box-shadow: 0 25px 70px rgba(0, 0, 0, 0.28);
       }
 
+      .modalBoxAgendamento {
+        width: min(100%, 310px);
+        max-height: 78dvh;
+        padding: 14px;
+        border-radius: 20px;
+      }
+
       .modalBox h2 { margin: 0 0 8px; font-size: 20px; }
+      .modalBoxAgendamento h2 { margin-bottom: 6px; font-size: 18px; }
       .modalBox p { color: #555; margin: 10px 0 16px; }
       .modalBox button { padding: 11px; margin-top: 10px; border-radius: 14px; }
+      .modalBoxAgendamento button { padding: 10px; margin-top: 8px; }
       .modalBox .cancelar { background: #f3f4f6; color: #374151; }
 
       .campo, .preco { margin-top: 12px; }
+      .modalBoxAgendamento .campo { margin-top: 9px; }
       .campo label, .preco label { display: block; font-size: 13px; font-weight: 800; color: #be185d; margin-bottom: 6px; }
       .formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
       .aviso { color: #777; font-size: 14px; }
@@ -1201,6 +1223,7 @@ function Estilos() {
       }
 
       .formGridDataHora {
+        display: grid;
         grid-template-columns: 1fr;
         align-items: stretch;
         gap: 8px;
@@ -1221,6 +1244,7 @@ function Estilos() {
       @media (max-width: 430px) {
         .modal { padding: 12px; align-items: center; }
         .modalBox { width: min(100%, 330px); max-height: 82dvh; padding: 16px; }
+        .modalBoxAgendamento { width: min(100%, 304px); max-height: 78dvh; padding: 13px; }
         .formGridDataHora { grid-template-columns: 1fr; gap: 8px; }
         .formGridDataHora input { height: 40px; padding: 8px 10px; font-size: 14px; }
       }

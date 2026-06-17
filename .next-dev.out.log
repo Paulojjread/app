@@ -8,3 +8,4 @@
 - Environments: .env.local
 ✓ Ready in 691ms
 
+ GET / 200 in 485ms (next.js: 245ms, application-code: 240ms)

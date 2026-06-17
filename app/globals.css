@@ -856,7 +856,9 @@ select:focus {
 
 .modalBoxAgendamento {
   width: min(100%, 336px);
+  max-width: calc(100vw - 24px);
   padding: 14px;
+  overflow-x: hidden;
 }
 
 .modalHeader {
@@ -892,10 +894,14 @@ select:focus {
 .modalCampos {
   display: grid;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .campo {
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .campo label {
@@ -910,10 +916,16 @@ select:focus {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .modalBoxAgendamento input,
 .modalBoxAgendamento select {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: 40px;
   border-radius: 12px;
   padding-top: 8px;

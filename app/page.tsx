@@ -442,10 +442,26 @@ export default function Home() {
       return;
     }
 
+    const horarioNormalizado = horario.slice(0, 5);
+    const existeHorarioOcupado = agendamentos.some((item) => {
+      const status = item.status || "agendado";
+      return (
+        item.id !== editando?.id &&
+        status !== "cancelado" &&
+        item.data_atendimento === data &&
+        item.horario.slice(0, 5) === horarioNormalizado
+      );
+    });
+
+    if (existeHorarioOcupado) {
+      alert("Já existe um agendamento neste dia e horário. Escolha outro horário.");
+      return;
+    }
+
     const payload = {
       nome_cliente: nome.trim(),
       data_atendimento: data,
-      horario,
+      horario: horarioNormalizado,
       servico: servicosSelecionados.join(", "),
       valor: valorNumerico,
       status: editando?.status === "realizado" ? "realizado" : "agendado",
